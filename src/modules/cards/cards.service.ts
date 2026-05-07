@@ -28,7 +28,7 @@ export class CardsService {
     if (!project) throw new NotFoundException('Project not found');
 
     const isOwner = project.owner.toString() === userId;
-    const isCollaborator = project.collobrators?.includes(userId);
+    const isCollaborator = project.collobrators?.some(id => id.toString() === userId);
 
     if (!isOwner && !isCollaborator) {
       throw new ForbiddenException('You do not have access to this project');
@@ -76,7 +76,7 @@ export class CardsService {
 
     // Check if user is owner or collaborator
     const isOwner = project.owner.toString() === userId;
-    const isCollaborator = project.collobrators?.includes(userId);
+    const isCollaborator = project.collobrators?.some(id => id.toString() === userId);
     if (!isOwner && !isCollaborator) {
       throw new ForbiddenException('You do not have access to this project');
     }
@@ -116,7 +116,7 @@ export class CardsService {
 
     // Check permissions
     const isOwner = project.owner.toString() === userId;
-    const isCollaborator = project.collobrators?.includes(userId);
+    const isCollaborator = project.collobrators?.some(id => id.toString() === userId);
     if (!isOwner && !isCollaborator) {
       throw new ForbiddenException('You do not have access to this task');
     }
@@ -207,7 +207,7 @@ export class CardsService {
     if (!project) throw new NotFoundException('Project not found');
 
     const isOwner = project.owner.toString() === userId;
-    const isCollaborator = project.collobrators?.includes(userId);
+    const isCollaborator = project.collobrators?.some(id => id.toString() === userId);
     if (!isOwner && !isCollaborator) {
       throw new ForbiddenException('You do not have access to this project');
     }

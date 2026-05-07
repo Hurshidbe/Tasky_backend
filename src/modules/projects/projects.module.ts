@@ -10,6 +10,7 @@ import { Card, CardSchema } from '../cards/entities/card.entity';
 import { Task, TaskSchema } from '../cards/entities/task.entity';
 import * as dotenv from 'dotenv'
 import { ProjectsController } from './projects.controller';
+import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 dotenv.config()
 
 @Module({
@@ -20,7 +21,8 @@ dotenv.config()
       { name: Card.name, schema: CardSchema },
       { name: Task.name, schema: TaskSchema }
     ]),
-    MailModule
+    MailModule,
+    CloudinaryModule
   ],
   controllers: [ProjectsController],
   providers: [ProjectsGateway, ProjectsService],

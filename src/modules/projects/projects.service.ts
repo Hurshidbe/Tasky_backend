@@ -10,6 +10,7 @@ import { Model, Types } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
 import { Socket } from 'socket.io';
 import { MailService } from '../nodeMailer/mailer.service';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class ProjectsService {
@@ -19,7 +20,8 @@ export class ProjectsService {
     @InjectModel(Card.name) private readonly CardRepo: Model<Card>,
     @InjectModel(Task.name) private readonly TaskRepo: Model<Task>,
     private readonly jwt: JwtService,
-    private readonly mailService: MailService
+    private readonly mailService: MailService,
+    private readonly cloudinaryService: CloudinaryService
   ) { }
 
   async create(owner: string, createProjectDto: CreateProjectDto) {
@@ -43,9 +45,9 @@ export class ProjectsService {
         { collobrators: userObjectId as any }
       ]
     })
-    .populate('owner', 'firstname lastname avatar')
-    .populate('collobrators', 'firstname lastname avatar')
-    .exec();
+      .populate('owner', 'firstname lastname avatar')
+      .populate('collobrators', 'firstname lastname avatar')
+      .exec();
   }
 
   async findOne(id: string, userId: string) {
@@ -183,6 +185,26 @@ export class ProjectsService {
     await project.save();
 
     return { success: true, message: 'Collaborator removed successfully' };
+  }
+
+  async uploadProjectBackground(file: Express.Multer.File) {
+    return await this.cloudinaryService.uploadOneImage(file);
+  }
+
+  async updateBackground(projectId: string, userId: string, imageUrl: string) {
+    if (!projectId.match(/^[0-9a-fA-F]{24}$/)) throw new BadRequestException('Invalid project ID format');
+
+    const project = await this.ProjectsRepo.findById(projectId).exec();
+    if (!project) throw new NotFoundException('Project not found');
+
+    if (project.owner.toString() !== userId) {
+      throw new ForbiddenException('Only the owner can change the background');
+    }
+
+    project.background = imageUrl;
+    await project.save();
+
+    return { success: true, background: project.background };
   }
 
   async tokenChecker(client: Socket) {

@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, HttpException, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, HttpException, Res, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
@@ -103,6 +104,30 @@ export class ProjectsController {
             </div>
         </div>
       `);
+    }
+  }
+
+  @UseGuards(AuthGuard)
+  @Post(':id/background')
+  @UseInterceptors(FileInterceptor('photo'))
+  async updateBackground(@Req() req: any, @Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
+    try {
+      const userId = req.user.userId;
+      const img_url = await this.projectsService.uploadProjectBackground(file);
+      return await this.projectsService.updateBackground(id, userId, <string>img_url);
+    } catch (error) {
+      throw new HttpException(error.message, error.status || 500);
+    }
+  }
+
+  @UseGuards(AuthGuard)
+  @Delete(':id/collaborator/:collaboratorId')
+  async removeCollaborator(@Req() req: any, @Param('id') id: string, @Param('collaboratorId') collaboratorId: string) {
+    try {
+      const userId = req.user.userId;
+      return await this.projectsService.removeCollaborator(userId, id, collaboratorId);
+    } catch (error) {
+      throw new HttpException(error.message, error.status || 500);
     }
   }
 }

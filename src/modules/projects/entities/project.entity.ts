@@ -15,6 +15,9 @@ export class Project {
     @Prop({ required: false })
     description?: string
 
+    @Prop({ required: false })
+    background?: string
+
     @Prop({ type: [{ type: Types.ObjectId, ref: 'Auth' }], default: [], index: true })
     collobrators?: string[]
 }
