@@ -78,7 +78,6 @@ export class ProjectsController {
     }
   }
 
-  // Bu endpoint ochiq bo'lishi kerak (Email orqali kirish uchun)
   @Get('join/:token')
   async joinProject(@Param('token') token: string, @Res() res: any) {
     try {

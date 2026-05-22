@@ -94,7 +94,7 @@ export class AuthService {
         const pass_match = user? await bcrypt.compare(dto.password, user.password as string) : false;
         if (!user || !pass_match) {
             await this.CacheManager.set(key, attemps + 1, 120000);
-            throw new UnauthorizedException(`Incorrect email/password \n if you want reset your password, pls click this link : ${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/password-reset-request`);
+            throw new UnauthorizedException(`Incorrect email/password`);
         }
 
         if(!user.is_email_verified){
@@ -107,7 +107,7 @@ export class AuthService {
 
     async sendResetPassLinkToViaNodemailer(email : string){
         const user = await this.AuthRepo.findOne({email : email})
-        if(!user) return `bunday email saytda royhatdan o'tmagan ro'yhatdan o'tish : ${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/register`
+        if(!user) throw new BadRequestException(`bunday email saytda royhatdan o'tmagan`);
         await this.ResetPassRequestsRepo.findByIdAndDelete(user._id)
         await this.ResetPassRequestsRepo.create({user : user._id, used : false})
         return await this.mailService.sendResetPasswordLink(user._id, user.email)
