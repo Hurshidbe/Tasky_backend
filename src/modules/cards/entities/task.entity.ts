@@ -18,8 +18,8 @@ export class Task {
   projectId: Types.ObjectId;
 
 
-  @Prop({ default: 0 })
-  order: number; // Position inside the column
+  @Prop({ type: String, default: '500000', index: true })
+  order: string; // LexoRank rank value inside column
 
   @Prop({
     type: [{

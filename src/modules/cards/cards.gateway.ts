@@ -19,6 +19,15 @@ export class CardsGateway {
 
   constructor(private readonly cardsService: CardsService) { }
 
+  async broadcastActivities(projectId: string) {
+    try {
+      const activities = await this.cardsService.getActivities(projectId);
+      this.server.to(`project_${projectId}`).emit('activitiesUpdated', { activities });
+    } catch (e) {
+      console.error('Failed to broadcast activities:', e);
+    }
+  }
+
   @UsePipes(new ValidationPipe())
   @SubscribeMessage('joinProject')
   async handleJoinProject(
@@ -52,6 +61,7 @@ export class CardsGateway {
       const card = await this.cardsService.createCard(userId, dto);
 
       this.server.to(`project_${dto.projectId}`).emit('cardCreated', card);
+      this.broadcastActivities(dto.projectId);
       return { success: true, data: card };
     } catch (error) {
       return { success: false, error: error.message };
@@ -71,6 +81,7 @@ export class CardsGateway {
       const card = await this.cardsService.updateCard(userId, id, updateData);
 
       this.server.to(`project_${card.projectId}`).emit('cardUpdated', card);
+      this.broadcastActivities(card.projectId.toString());
       return { success: true, data: card };
     } catch (error) {
       return { success: false, error: error.message };
@@ -88,6 +99,7 @@ export class CardsGateway {
       const result = await this.cardsService.removeCard(userId, data.id);
 
       this.server.to(`project_${result.projectId}`).emit('cardRemoved', { cardId: data.id });
+      this.broadcastActivities(result.projectId.toString());
       return { success: true, ...result };
     } catch (error) {
       return { success: false, error: error.message };
@@ -106,6 +118,7 @@ export class CardsGateway {
       const task = await this.cardsService.createTask(userId, dto);
 
       this.server.to(`project_${dto.projectId}`).emit('taskCreated', task);
+      this.broadcastActivities(dto.projectId);
       return { success: true, data: task };
     } catch (error) {
       return { success: false, error: error.message };
@@ -125,6 +138,7 @@ export class CardsGateway {
       const task = await this.cardsService.updateTask(userId, id as string, updateData);
 
       this.server.to(`project_${task.projectId}`).emit('taskUpdated', task);
+      this.broadcastActivities(task.projectId.toString());
       return { success: true, data: task };
     } catch (error) {
       return { success: false, error: error.message };
@@ -142,6 +156,7 @@ export class CardsGateway {
       const result = await this.cardsService.removeTask(userId, data.id);
 
       this.server.to(`project_${result.projectId}`).emit('taskRemoved', { taskId: data.id });
+      this.broadcastActivities(result.projectId.toString());
       return { success: true, ...result };
     } catch (error) {
       return { success: false, error: error.message };
@@ -149,22 +164,55 @@ export class CardsGateway {
   }
 
   @UsePipes(new ValidationPipe())
-  @SubscribeMessage('moveTask')
-  async handleMoveTask(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() dto: MoveTaskDto
-  ) {
-    try {
-      await this.cardsService.tokenChecker(client);
-      const userId = client.data.user.userId;
-      const task = await this.cardsService.moveTask(userId, dto);
+@SubscribeMessage('moveTask')
+async handleMoveTask(
+  @ConnectedSocket() client: Socket,
+  @MessageBody() dto: MoveTaskDto
+) {
+  try {
+    await this.cardsService.tokenChecker(client);
 
-      this.server.to(`project_${task.projectId}`).emit('taskMoved', task);
-      return { success: true, data: task };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+    const userId = client.data.user.userId;
+
+    const result = await this.cardsService.moveTask(
+      userId,
+      dto
+    );
+
+    console.log('dto:', dto);
+    console.log('result:', result);
+
+    const projectId =
+      result.destinationTasks[0]?.projectId?.toString() ||
+      result.sourceTasks[0]?.projectId?.toString();
+
+    this.server
+      .to(`project_${projectId}`)
+      .emit('taskMoved', {
+        fromColumnId: dto.fromColumnId,
+        toColumnId: dto.toColumnId,
+        updatedSourceColumnTasks:
+          result.sourceTasks,
+
+        updatedTargetColumnTasks:
+          result.destinationTasks,
+      });
+
+    this.broadcastActivities(projectId);
+
+    return {
+      success: true,
+      data: result
+    };
+
+  } catch (error) {
+    console.log(error)
+    return {
+      success: false,
+      error: error.message
+    };
   }
+}
 
   @UsePipes(new ValidationPipe())
   @SubscribeMessage('getBoard')
@@ -177,6 +225,32 @@ export class CardsGateway {
       const userId = client.data.user.userId;
       const board = await this.cardsService.getBoard(userId, dto.projectId);
       return { success: true, data: board };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  @SubscribeMessage('reorderCards')
+  async handleReorderCards(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { projectId: string, cardIds: string[] }
+  ) {
+    try {
+      await this.cardsService.tokenChecker(client);
+      const userId = client.data.user.userId;
+      
+      // Loyihaga kirish ruxsatini tekshirish
+      await this.cardsService.validateProjectAccess(userId, data.projectId);
+      
+      // Ustunlarning order xususiyatini yangilab chiqish
+      await Promise.all(data.cardIds.map((cardId, index) => 
+        this.cardsService.updateCard(userId, cardId, { order: index })
+      ));
+      
+      // Boshqa foydalanuvchilarga ustunlar tartibi o'zgarganini xabar berish
+      this.server.to(`project_${data.projectId}`).emit('cardReordered', { success: true });
+      
+      return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
     }

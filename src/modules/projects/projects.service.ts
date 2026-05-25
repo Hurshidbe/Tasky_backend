@@ -6,6 +6,7 @@ import { Project } from './entities/project.entity';
 import { Auth } from '../auth/schema/auth.schema';
 import { Card } from '../cards/entities/card.entity';
 import { Task } from '../cards/entities/task.entity';
+import { Activity, ActivityDocument } from './entities/activity.entity';
 import { Model, Types } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
 import { Socket } from 'socket.io';
@@ -19,10 +20,30 @@ export class ProjectsService {
     @InjectModel(Auth.name) private readonly AuthRepo: Model<Auth>,
     @InjectModel(Card.name) private readonly CardRepo: Model<Card>,
     @InjectModel(Task.name) private readonly TaskRepo: Model<Task>,
+    @InjectModel(Activity.name) private readonly ActivityRepo: Model<ActivityDocument>,
     private readonly jwt: JwtService,
     private readonly mailService: MailService,
     private readonly cloudinaryService: CloudinaryService
   ) { }
+
+  async logActivity(projectId: string, userId: string, type: string, details: Partial<Activity> = {}) {
+    try {
+      const user = await this.AuthRepo.findById(userId).exec();
+      const userName = user ? `${user.firstname} ${user.lastname || ''}`.trim() : 'Someone';
+      const userAvatar = user?.avatar;
+      
+      return await this.ActivityRepo.create({
+        projectId: new Types.ObjectId(projectId),
+        userId: new Types.ObjectId(userId),
+        type,
+        userName,
+        userAvatar,
+        ...details
+      });
+    } catch (e) {
+      console.error('Failed to log activity:', e);
+    }
+  }
 
   async create(owner: string, createProjectDto: CreateProjectDto) {
     const created = await this.ProjectsRepo.create({
@@ -78,6 +99,9 @@ export class ProjectsService {
 
     const updated = await this.ProjectsRepo.findByIdAndUpdate(id, dto, { new: true }).exec();
     if (!updated) throw new NotFoundException('Failed to update project');
+    await this.logActivity(id, userId, 'project_updated', {
+      data: dto
+    });
     return updated;
   }
 
@@ -136,6 +160,10 @@ export class ProjectsService {
     // 5. Send Email
     await this.mailService.sendCollaboratorInvite(targetUser.email, project.name, inviterName, inviteLink, message);
 
+    await this.logActivity(projectId, userId, 'collaborator_invited', {
+      data: { email: targetUser.email }
+    });
+
     return { success: true, message: `Invitation sent to ${targetUser.email}` };
   }
 
@@ -165,6 +193,8 @@ export class ProjectsService {
     project.collobrators = project.collobrators || [];
     project.collobrators.push(userIdStr);
     await project.save();
+
+    await this.logActivity(projectId, userIdStr, 'collaborator_joined');
 
     return { projectName: project.name, user: user._id };
   }
@@ -203,6 +233,10 @@ export class ProjectsService {
 
     project.background = imageUrl;
     await project.save();
+
+    await this.logActivity(projectId, userId, 'background_updated', {
+      data: { background: imageUrl }
+    });
 
     return { success: true, background: project.background };
   }

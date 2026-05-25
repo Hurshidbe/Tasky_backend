@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 
 @Schema({ timestamps: true })
 export class Auth {
-    @Prop({ unique: true })
+    @Prop({  })
     email!: string
 
     @Prop()
@@ -18,7 +18,7 @@ export class Auth {
     @Prop({ required: false })
     profession?: string
 
-    @Prop({ required: false, unique: true })
+    @Prop({ required: false, })
     username?: string
 
     @Prop({ default: '', required: false })

@@ -19,6 +19,9 @@ export class Project {
     background?: string
 
     @Prop({ type: [{ type: Types.ObjectId, ref: 'Auth' }], default: [], index: true })
+    collaborators?: string[]
+
+    @Prop({ type: [{ type: Types.ObjectId, ref: 'Auth' }], default: [], index: true })
     collobrators?: string[]
 }
 

@@ -65,7 +65,6 @@ export class AuthService {
                 firstname: user.name,
                 avatar: user.avatar,
                 is_email_verified: true,
-                password: null
             });
             
             return this.generateTokens(newUser._id);
