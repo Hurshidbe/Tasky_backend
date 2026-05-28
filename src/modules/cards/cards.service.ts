@@ -387,9 +387,9 @@ export class CardsService {
 
   async getBoard(userId: string, projectId: string) {
     const project = await this.ProjectRepo.findById(projectId)
-      .populate('owner', 'firstname lastname email avatar')
-      .populate('collaborators', 'firstname lastname email avatar')
-      .populate('collobrators', 'firstname lastname email avatar')
+      .populate('owner', 'firstname lastname email avatar username profession about createdAt')
+      .populate('collaborators', 'firstname lastname email avatar username profession about createdAt')
+      .populate('collobrators', 'firstname lastname email avatar username profession about createdAt')
       .exec();
     if (!project) throw new NotFoundException('Project not found');
 
