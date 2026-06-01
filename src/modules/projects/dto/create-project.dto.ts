@@ -19,5 +19,5 @@ export class CreateProjectDto {
     @IsOptional()
     @IsArray()
     @IsString({ each: true })
-    collobrators?: string[];
+    collaborators?: string[];
 }

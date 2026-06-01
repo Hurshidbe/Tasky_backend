@@ -51,7 +51,7 @@ export class ProjectsService {
       description: createProjectDto.description,
       project_icon: createProjectDto.project_icon,
       owner: new Types.ObjectId(owner),
-      collobrators: createProjectDto.collobrators || []
+      collaborators: createProjectDto.collaborators || []
     });
     return created;
   }
@@ -62,12 +62,12 @@ export class ProjectsService {
       $or: [
         { owner: userId },
         { owner: userObjectId as any },
-        { collobrators: userId },
-        { collobrators: userObjectId as any }
+        { collaborators: userId },
+        { collaborators: userObjectId as any },
       ]
     })
       .populate('owner', 'firstname lastname avatar')
-      .populate('collobrators', 'firstname lastname avatar')
+      .populate('collaborators', 'firstname lastname avatar')
       .exec();
   }
 
@@ -81,7 +81,7 @@ export class ProjectsService {
     if (!project) throw new NotFoundException('Project not found');
 
     // Check if user is owner OR a collaborator
-    if (project.owner.toString() !== userId && !project.collobrators?.includes(userId)) {
+    if (project.owner.toString() !== userId && !project.collaborators?.includes(userId)) {
       throw new ForbiddenException('You do not have access to this project');
     }
     return project;
@@ -186,15 +186,31 @@ export class ProjectsService {
     const userIdStr = user._id.toString();
 
     // Do not add if already a collaborator or owner
-    if (project.owner.toString() === userIdStr || project.collobrators?.includes(userIdStr)) {
+    if (project.owner.toString() === userIdStr || project.collaborators?.includes(userIdStr)) {
       return { projectName: project.name, message: 'You are already in this project' };
     }
 
-    project.collobrators = project.collobrators || [];
-    project.collobrators.push(userIdStr);
+    project.collaborators = project.collaborators || [];
+    project.collaborators.push(userIdStr);
     await project.save();
 
     await this.logActivity(projectId, userIdStr, 'collaborator_joined');
+
+    // Notify project owner via email
+    try {
+      const ownerUser = await this.AuthRepo.findById(project.owner).exec();
+      if (ownerUser && ownerUser.email) {
+        const collaboratorName = `${user.firstname} ${user.lastname || ''}`.trim();
+        await this.mailService.sendInvitationAccepted(
+          ownerUser.email,
+          project.name,
+          collaboratorName,
+          user.email
+        );
+      }
+    } catch (emailError) {
+      console.error('Failed to notify project owner via email:', emailError);
+    }
 
     return { projectName: project.name, user: user._id };
   }
@@ -207,11 +223,11 @@ export class ProjectsService {
       throw new ForbiddenException('Only the owner can remove collaborators');
     }
 
-    if (!project.collobrators?.includes(collaboratorId)) {
+    if (!project.collaborators?.some(id => id?.toString() === collaboratorId)) {
       throw new BadRequestException('User is not a collaborator in this project');
     }
 
-    project.collobrators = project.collobrators.filter(id => id !== collaboratorId);
+    project.collaborators = project.collaborators.filter(id => id && id.toString() !== collaboratorId);
     await project.save();
 
     return { success: true, message: 'Collaborator removed successfully' };

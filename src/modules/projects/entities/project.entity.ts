@@ -20,9 +20,6 @@ export class Project {
 
     @Prop({ type: [{ type: Types.ObjectId, ref: 'Auth' }], default: [], index: true })
     collaborators?: string[]
-
-    @Prop({ type: [{ type: Types.ObjectId, ref: 'Auth' }], default: [], index: true })
-    collobrators?: string[]
 }
 
 export const ProjectSchema = SchemaFactory.createForClass(Project)

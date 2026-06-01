@@ -102,7 +102,7 @@ export class ProjectsGateway implements OnGatewayConnection, OnGatewayDisconnect
       const project = await this.projectService.update(payload.id, payload.dto, userId);
 
       // O'zgarishlarni egasi va collaboratorlarga xabar qilamiz
-      const notifyUsers = [project.owner.toString(), ...(project.collobrators || [])];
+      const notifyUsers = [project.owner.toString(), ...(project.collaborators || [])];
       notifyUsers.forEach(id => {
         this.server.to(`user_${id}`).emit('projectUpdated', { success: true, data: project });
       });
@@ -129,7 +129,7 @@ export class ProjectsGateway implements OnGatewayConnection, OnGatewayDisconnect
       await this.projectService.remove(id, userId);
 
       // Loyiha o'chirilganini egasi va collaboratorlarga xabar qilamiz
-      const notifyUsers = [project.owner.toString(), ...(project.collobrators || [])];
+      const notifyUsers = [project.owner.toString(), ...(project.collaborators || [])];
       notifyUsers.forEach(notifyId => {
         this.server.to(`user_${notifyId}`).emit('projectRemoved', { success: true, id });
       });
