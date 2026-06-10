@@ -103,11 +103,10 @@ export class CardsService {
     const project = await this.ProjectRepo.findById(dto.projectId).exec();
     if (!project) throw new NotFoundException('Project not found');
 
-    // Check if user is owner or collaborator
+    // Only the project owner can create tasks
     const isOwner = project.owner.toString() === userId;
-    const isCollaborator = project.collaborators?.some(id => id.toString() === userId);
-    if (!isOwner && !isCollaborator) {
-      throw new ForbiddenException('You do not have access to this project');
+    if (!isOwner) {
+      throw new ForbiddenException('Only the project owner can create tasks');
     }
 
     const card = await this.CardRepo.findById(dto.cardId).exec();
@@ -130,6 +129,7 @@ export class CardsService {
       cardId: new Types.ObjectId(dto.cardId),
       projectId: new Types.ObjectId(dto.projectId),
       order: nextOrder,
+      assignedTo: dto.assignedTo ? new Types.ObjectId(dto.assignedTo) : null,
     });
 
     await this.TaskMovementRepo.create({
@@ -146,7 +146,11 @@ export class CardsService {
       cardId: new Types.ObjectId(dto.cardId)
     });
 
-    return task;
+    const populatedTask = await this.TaskRepo.findById(task._id)
+      .populate('assignedTo', 'firstname lastname email avatar username profession about createdAt')
+      .exec();
+
+    return populatedTask;
   }
 
   async moveTaskBetweenColumns(
@@ -175,6 +179,12 @@ export class CardsService {
     const isCollaborator = project.collaborators?.some(id => id.toString() === userId);
     if (!isOwner && !isCollaborator) {
       throw new ForbiddenException('You do not have access');
+    }
+
+    // Enforce task assignment permissions: only the assigned user or project owner can move/reorder this task
+    const assignedUserId = task.assignedTo?.toString();
+    if (assignedUserId && assignedUserId !== userId && !isOwner) {
+      throw new ForbiddenException("Siz ushbu vazifani o'zgartira olmaysiz, chunki u boshqa hamkorga biriktirilgan");
     }
 
     const sourceColumnId = task.cardId.toString();
@@ -244,8 +254,12 @@ export class CardsService {
     });
 
     // 5. Fetch updated source and target columns for websocket synchronization
-    const updatedSource = await this.TaskRepo.find({ cardId: new Types.ObjectId(sourceColumnId) }).sort({ order: 1 });
-    const updatedDest = await this.TaskRepo.find({ cardId: new Types.ObjectId(toColumnId) }).sort({ order: 1 });
+    const updatedSource = await this.TaskRepo.find({ cardId: new Types.ObjectId(sourceColumnId) })
+      .populate('assignedTo', 'firstname lastname email avatar username profession about createdAt')
+      .sort({ order: 1 });
+    const updatedDest = await this.TaskRepo.find({ cardId: new Types.ObjectId(toColumnId) })
+      .populate('assignedTo', 'firstname lastname email avatar username profession about createdAt')
+      .sort({ order: 1 });
 
     return { sourceTasks: updatedSource, destinationTasks: updatedDest };
   }
@@ -350,7 +364,9 @@ export class CardsService {
       at: new Date()
     });
 
-    const updated = await this.TaskRepo.findByIdAndUpdate(taskId, dto, { returnDocument: 'after' }).exec();
+    const updated = await this.TaskRepo.findByIdAndUpdate(taskId, dto, { returnDocument: 'after' })
+      .populate('assignedTo', 'firstname lastname email avatar username profession about createdAt')
+      .exec();
     if (!updated) throw new NotFoundException('Task not found after update');
 
     await this.logActivity(task.projectId.toString(), userId, 'task_updated', {
@@ -400,6 +416,7 @@ export class CardsService {
       .exec();
 
     const tasksQuery = this.TaskRepo.find({ projectId: new Types.ObjectId(projectId) })
+      .populate('assignedTo', 'firstname lastname email avatar username profession about createdAt')
       .sort({ cardId: 1, order: 1 });
     if (isOwner) tasksQuery.select('+history');
     const tasks = await tasksQuery.exec();

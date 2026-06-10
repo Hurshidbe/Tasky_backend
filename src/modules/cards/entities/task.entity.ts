@@ -17,6 +17,8 @@ export class Task {
   @Prop({ type: Types.ObjectId, ref: 'Project', required: true, index: true })
   projectId: Types.ObjectId;
 
+  @Prop({ type: Types.ObjectId, ref: 'Auth', required: false, default: null, index: true })
+  assignedTo?: Types.ObjectId | null;
 
   @Prop({ type: String, default: '500000', index: true })
   order: string; // LexoRank rank value inside column
