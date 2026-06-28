@@ -1,20 +1,19 @@
 import { Module } from '@nestjs/common';
-import { ProfileService } from './profile.service';
-import { ProfileController } from './profile.controller';
-import { Mongoose } from 'mongoose';
 import { MongooseModule } from '@nestjs/mongoose';
-import { Auth, AuthSchema } from '../auth/schema/auth.schema';
-import { CloudinaryService } from '../cloudinary/cloudinary.service';
-import { CloudinaryModule } from '../cloudinary/cloudinary.module';
+
+import { ProfileService } from './profile.service.js';
+import { ProfileController } from './profile.controller.js';
+import { User, UserSchema } from '../auth/schema/auth.schema.js';
+import { CloudinaryModule } from '../cloudinary/cloudinary.module.js';
 
 @Module({
-  imports : [
+  imports: [
     MongooseModule.forFeature([
-      { name: Auth.name, schema: AuthSchema}
+      { name: User.name, schema: UserSchema },
     ]),
-    CloudinaryModule
+    CloudinaryModule,
   ],
   controllers: [ProfileController],
-  providers: [ProfileService ,CloudinaryService],
+  providers: [ProfileService],
 })
 export class ProfileModule {}

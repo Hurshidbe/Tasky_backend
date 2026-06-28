@@ -1,36 +1,53 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { AuthModule } from './modules/auth/auth.module';
-import { UserModule } from './modules/user/user.module';
-import { DbModule } from './modules/db/db.module';
-import { Cache_Module } from './modules/cache/Cache.Module';
-import { GoogleOauth2Module } from './modules/google-oauth2/google-oauth2.module';
-import { MailModule } from './modules/nodeMailer/mailer.module';
 import { ConfigModule } from '@nestjs/config';
-import { env } from 'process';
-import { ProjectsModule } from './modules/projects/projects.module';
-import { ProfileModule } from './modules/profile/profile.module';
-import { CardsModule } from './modules/cards/cards.module';
-import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
+
+import { AppController } from './app.controller.js';
+import { AppService } from './app.service.js';
+import { AuthModule } from './modules/auth/auth.module.js';
+import { DatabaseModule } from './modules/database/database.module.js';
+import { CacheConfigModule } from './modules/cache/cache.module.js';
+import { GoogleOauth2Module } from './modules/google-oauth2/google-oauth2.module.js';
+import { MailModule } from './modules/mail/mail.module.js';
+import { ProjectModule } from './modules/project/project.module.js';
+import { ProfileModule } from './modules/profile/profile.module.js';
+import { BoardModule } from './modules/board/board.module.js';
+import { CloudinaryModule } from './modules/cloudinary/cloudinary.module.js';
+
+import {
+  appConfig,
+  databaseConfig,
+  jwtConfig,
+  mailConfig,
+  cloudinaryConfig,
+  googleOAuthConfig,
+  corsConfig,
+} from './config/index.js';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal : true,
-      envFilePath : '.env'
+      isGlobal: true,
+      load: [
+        appConfig,
+        databaseConfig,
+        jwtConfig,
+        mailConfig,
+        cloudinaryConfig,
+        googleOAuthConfig,
+        corsConfig,
+      ],
+      envFilePath: '.env',
     }),
     AuthModule,
-    UserModule, 
-    DbModule, 
-    Cache_Module, 
+    DatabaseModule,
+    CacheConfigModule,
     GoogleOauth2Module,
     MailModule,
-    ProjectsModule,
+    ProjectModule,
     ProfileModule,
-    CardsModule,
-    CloudinaryModule
-    ],
+    BoardModule,
+    CloudinaryModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

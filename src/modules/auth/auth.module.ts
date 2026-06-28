@@ -1,40 +1,42 @@
 import { Module } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import { AuthController } from './auth.controller';
-import { DbModule } from '../db/db.module';
 import { MongooseModule } from '@nestjs/mongoose';
-import { Auth, AuthSchema } from './schema/auth.schema';
 import { JwtModule } from '@nestjs/jwt';
-import { RefreshToken, RefreshTokenSchema } from './schema/refreshToken.schema';
-import { Cache_Module } from '../cache/Cache.Module';
-import { ConfigModule } from '@nestjs/config';
-import { GoogleOauth2Module } from '../google-oauth2/google-oauth2.module';
-import { MailService } from '../nodeMailer/mailer.service';
-import { MailModule } from '../nodeMailer/mailer.module';
-import { ResetPass, ResetPassSchema } from './schema/resetPass.schema';
-import { profile } from 'console';
-import { ProfileService } from '../profile/profile.service';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+
+import { AuthService } from './auth.service.js';
+import { AuthController } from './auth.controller.js';
+import { Auth, AuthSchema } from './schema/auth.schema.js';
+import { RefreshToken, RefreshTokenSchema } from './schema/refreshToken.schema.js';
+import { ResetPass, ResetPassSchema } from './schema/resetPass.schema.js';
+import { DatabaseModule } from '../database/database.module.js';
+import { CacheConfigModule } from '../cache/cache.module.js';
+import { GoogleOauth2Module } from '../google-oauth2/google-oauth2.module.js';
+import { MailModule } from '../mail/mail.module.js';
 
 @Module({
   imports: [
-    DbModule,
+    DatabaseModule,
     GoogleOauth2Module,
     MongooseModule.forFeature([
       { name: Auth.name, schema: AuthSchema },
       { name: RefreshToken.name, schema: RefreshTokenSchema },
       { name: ResetPass.name, schema: ResetPassSchema },
     ]),
-    JwtModule.register({
+    JwtModule.registerAsync({
       global: true,
-      secret: process.env.JWT_SECRET ?? '',
-      signOptions: {
-        expiresIn: '5h',
-      },
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET', ''),
+        signOptions: {
+          expiresIn: configService.get<any>('JWT_EXPIRES_IN', '5h'),
+        },
+      }),
     }),
-    Cache_Module,
-    MailModule
+    CacheConfigModule,
+    MailModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, MailService, ProfileService],
+  providers: [AuthService],
 })
-export class AuthModule { }
+export class AuthModule {}

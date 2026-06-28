@@ -1,127 +1,89 @@
-import { BadRequestException, Body, Controller, Get, HttpException, Logger, Param, Post, Req, Res, UseGuards } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import { refreshTwoTokents, RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
+import { Body, Controller, Get, Param, Post, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard as PassportAuthGuard } from '@nestjs/passport';
-import type { Request } from 'express';
+import { ConfigService } from '@nestjs/config';
 import { Profile } from 'passport';
-import { ChangePasswordDto, SetPasswordDto } from './dto/setAndChangePassword.dto';
-import { AuthGuard } from 'src/guards/Auth.guard';
+
+import { AuthService } from './auth.service.js';
+import { RegisterDto } from './dto/register.dto.js';
+import { LoginDto } from './dto/login.dto.js';
+import { SetPasswordDto } from './dto/set-password.dto.js';
+import { ChangePasswordDto } from './dto/change-password.dto.js';
+import { RefreshTokenDto } from './dto/refresh-token.dto.js';
+import { AuthGuard } from '../../common/guards/auth.guard.js';
+import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
+import type { RequestWithUser } from '../../common/types/request.types.js';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Post('register')
-  async register(@Body()dto : RegisterDto){
-   try {
-     return await this.authService.register(dto)
-   } catch (error) {
-    throw new HttpException(error.message , error.status??500)
-   }
+  async register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
   }
 
   @Post('login')
-  async login(
-    @Body() dto : LoginDto,
-  ){
-    try {
-      return await this.authService.loginWithEmail(dto)
-    } catch (error) {
-      throw new HttpException(error.message , error.status??500)
-    }
+  async login(@Body() dto: LoginDto) {
+    return this.authService.loginWithEmail(dto);
   }
+
+  // ─── Google OAuth ──────────────────────────────────────
 
   @Get('google')
   @UseGuards(PassportAuthGuard('google'))
-  async googleLogin(){}
+  async googleLogin() {}
 
   @Get('google/callback')
   @UseGuards(PassportAuthGuard('google'))
-  async callback(@Req() req : Request, @Res() res: any){
-    try {
-      const data = req.user as Profile
-      console.log("--- DEBUG: Google Profile Email ---", data.emails?.[0]?.value);
-      const tokens = await this.authService.registerOrLoginWithGoogle(data)
-      console.log("--- DEBUG: Google Login Success ---");
-      
-      // Frontendga yo'naltirish (3001-port)
-      return res.redirect(`http://localhost:3001/auth-callback?token=${tokens.access_token}&refresh_token=${tokens.refresh_token}`)
-    } catch (error) {
-      console.error("--- DEBUG: Google Login Error ---", error.message);
-      throw new HttpException(error.message , error.status??500)
-    }
+  async googleCallback(@Res() res: any, @Body() _body: any) {
+    // req.user is populated by Passport strategy
+    const req = res.req;
+    const data = req.user as Profile;
+    const tokens = await this.authService.registerOrLoginWithGoogle(data);
+    const frontendUrl = this.configService.get<string>('app.frontendUrl', 'http://localhost:3001');
+    return res.redirect(
+      `${frontendUrl}/auth-callback?token=${tokens.access_token}&refresh_token=${tokens.refresh_token}`,
+    );
   }
 
-  @Get('verify/:id')  
-  async verifyEmail(
-    @Param('id') id : string
-  ){
-    try {
-      return await this.authService.verifyEmail(id)
-    } catch (error) {
-      throw new HttpException(error.message , error.status??500)
-    }
+  // ─── Email Verification ────────────────────────────────
+
+  @Get('verify/:id')
+  async verifyEmail(@Param('id') id: string) {
+    return this.authService.verifyEmail(id);
   }
 
-  @UseGuards(AuthGuard)                                    // Google-registered user can set own passowrd for login from other devices also without google account too
+  // ─── Password Management ──────────────────────────────
+
+  @UseGuards(AuthGuard)
   @Post('set-password')
-  async setPasswordForGoogleUser(
-    @Req() req : any,
-    @Body() dto : SetPasswordDto
-  ){
-    try {
-      const userId  = req.user.userId
-
-      return await this.authService.setPassword(userId,dto)
-    } catch (error) {
-      throw new HttpException(error.message , error.status??500)
-    }
+  async setPassword(@CurrentUser() userId: string, @Body() dto: SetPasswordDto) {
+    return this.authService.setPassword(userId, dto);
   }
 
   @UseGuards(AuthGuard)
-  @Post('change-password')  
-  async changePasswod(
-    @Req() req : any,
-    @Body() dto : ChangePasswordDto
-  ){
-    try {
-      const userId  = req.user.userId
-
-      return await this.authService.changePassword(userId,dto)
-    } catch (error) {
-      throw new HttpException(error.message , error.status??500)
-    }
+  @Post('change-password')
+  async changePassword(@CurrentUser() userId: string, @Body() dto: ChangePasswordDto) {
+    return this.authService.changePassword(userId, dto);
   }
 
   @Post('password-reset-request')
-  async resetPasswordrequest(@Body() data:{email : string}){
-    try {
-      return await this.authService.sendResetPassLinkToViaNodemailer(data.email)
-    } catch (error) {
-      throw new HttpException(error.message , error.status??500)
-    }
+  async requestPasswordReset(@Body() data: { email: string }) {
+    return this.authService.sendResetPasswordLink(data.email);
   }
 
-  @Post('reset-password/:id')                        //reset password by id. when user forgot password recive email message for linking with this url (url is odnorazoviy)
-  async resetPassword(
-    @Param('id') id : string,
-    @Body() dto : SetPasswordDto
-  ){
-    try {
-      return await this.authService.resetPassword(id, dto)
-    } catch (error) {
-      throw new HttpException(error.message , error.status??500)
-    }
+  @Post('reset-password/:id')
+  async resetPassword(@Param('id') id: string, @Body() dto: SetPasswordDto) {
+    return this.authService.resetPassword(id, dto);
   }
 
+  // ─── Token Refresh ─────────────────────────────────────
 
-  @Post('refresh')                                  // accessToken eskibqosa shunga call qilishad
-  async refreshTwoTokents(@Body() dto : refreshTwoTokents){
-    try {
-      return await this.authService.refreshAll(dto.refresh_token)
-    } catch (error) {
-      throw new HttpException(error.message , error.status??500)
-    }
+  @Post('refresh')
+  async refreshTokens(@Body() dto: RefreshTokenDto) {
+    return this.authService.refreshTokens(dto.refresh_token);
   }
 }

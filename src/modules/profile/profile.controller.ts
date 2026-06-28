@@ -1,54 +1,53 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, HttpException, Req, UploadedFile, UseInterceptors, BadRequestException } from '@nestjs/common';
-import { ProfileService } from './profile.service';
-import { AuthGuard } from 'src/guards/Auth.guard';
-import { ProfileDto } from './dto/update-profile.dto';
-import { dot } from 'node:test/reporters';
-import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import {
+  Controller,
+  Get,
+  Body,
+  Patch,
+  UseGuards,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Types } from 'mongoose';
+
+import { ProfileService } from './profile.service.js';
+import { AuthGuard } from '../../common/guards/auth.guard.js';
+import { ProfileDto } from './dto/update-profile.dto.js';
+import { CloudinaryService } from '../cloudinary/cloudinary.service.js';
+import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 
 @UseGuards(AuthGuard)
 @Controller('profile')
 export class ProfileController {
   constructor(
     private readonly profileService: ProfileService,
-    private readonly cloudinaryService: CloudinaryService
+    private readonly cloudinaryService: CloudinaryService,
   ) {}
 
   @Get()
-  findOwnProfile(@Req() req: any) {
-    try {
-      const userId = req.user.userId
-      return this.profileService.findProfile(userId)
-    } catch (error) {
-      throw new HttpException(error.message , error.status??500)
-    }
+  findOwnProfile(@CurrentUser() userId: string) {
+    return this.profileService.findProfile(new Types.ObjectId(userId));
   }
 
   @Patch()
-  update(
-    @Req() req : any,
-    @Body() updateProfileDto: ProfileDto) {
-   try {
-    const userId = req.user.userId
-    return this.profileService.updateProfile(updateProfileDto, userId)
-   } catch (error) {
-    throw new HttpException(error.message, error.status??500)
-   }
+  async update(
+    @CurrentUser() userId: string,
+    @Body() updateProfileDto: ProfileDto,
+  ) {
+    return this.profileService.updateProfile(updateProfileDto, new Types.ObjectId(userId));
   }
 
   @Patch('update-avatar')
   @UseInterceptors(FileInterceptor('photo'))
   async updateAvatar(
-    @Req() req : any,
-    @UploadedFile() file : Express.Multer.File
-  ){
-    try {
-      const userId = req.user.userId
-      const img_url = await this.cloudinaryService.uploadOneImage(file)
-      if(!userId) throw new BadRequestException('error occured with avatar updating')
-      return await this.profileService.updateAvatar(userId, <string>img_url)
-    } catch (error) {
-      throw new HttpException(error.message ,error.status??500)
+    @CurrentUser() userId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!userId) {
+      throw new BadRequestException('User ID not found in request');
     }
+    const imgUrl = await this.cloudinaryService.uploadOneImage(file);
+    return this.profileService.updateAvatar(userId, imgUrl as string);
   }
 }
